@@ -1206,11 +1206,16 @@ async function fbTryGenerateBracket() {
     const pm = liveData.matchs.filter(m=>m.poule===pool);
     if (!pm.length || !pm.every(m=>m.joue)) return;
   }
-  const firsts=[], seconds=[];
+  const firstsRaw=[], secondsRaw=[];
   pools.forEach(pool => {
     const st = computeStandings(pool);
-    if (st.length >= 2) { firsts.push(st[0].team.id); seconds.push(st[1].team.id); }
+    if (st.length >= 2) { firstsRaw.push(st[0]); secondsRaw.push(st[1]); }
   });
+  const sortByPerf = (a,b) => b.pts-a.pts || (b.pf-b.pc)-(a.pf-a.pc) || b.pf-a.pf;
+  firstsRaw.sort(sortByPerf);
+  secondsRaw.sort(sortByPerf);
+  const firsts  = firstsRaw.map(s => s.team.id);
+  const seconds = secondsRaw.map(s => s.team.id);
   await fbGenerateBracket(firsts, seconds, pools);
 }
 
@@ -1226,13 +1231,16 @@ async function fbGenerateBracket(firsts, seconds, pools) {
     batch.set(tb(),{tour:'Petite finale',slot:1,eq1:'',eq2:'',score1:0,score2:0,joue:false,gagnant:''});
     batch.set(tb(),{tour:'Finale',slot:1,eq1:'',eq2:'',score1:0,score2:0,joue:false,gagnant:''});
   } else if (n===5) {
-    // 2 barrages pour les 2 qualifiés en trop, puis 4 quarts normaux
-    batch.set(tb(),{tour:'Barrage',slot:1,eq1:seconds[2],eq2:seconds[4],score1:0,score2:0,joue:false,gagnant:''});
-    batch.set(tb(),{tour:'Barrage',slot:2,eq1:firsts[4],eq2:seconds[3],score1:0,score2:0,joue:false,gagnant:''});
-    batch.set(tb(),{tour:'Quart de finale',slot:1,eq1:firsts[0],eq2:seconds[1],score1:0,score2:0,joue:false,gagnant:''});
-    batch.set(tb(),{tour:'Quart de finale',slot:2,eq1:firsts[1],eq2:seconds[0],score1:0,score2:0,joue:false,gagnant:''});
-    batch.set(tb(),{tour:'Quart de finale',slot:3,eq1:firsts[2],eq2:'',score1:0,score2:0,joue:false,gagnant:''});
-    batch.set(tb(),{tour:'Quart de finale',slot:4,eq1:firsts[3],eq2:'',score1:0,score2:0,joue:false,gagnant:''});
+    // Seeds 1-6 directement en QF ; seeds 7-10 (4 derniers runners-up) jouent les barrages
+    // Barrage 1 : seed 8 (seconds[2]) vs seed 9 (seconds[3]) → gagnant → QF1.eq2
+    // Barrage 2 : seed 7 (seconds[1]) vs seed 10 (seconds[4]) → gagnant → QF4.eq2
+    batch.set(tb(),{tour:'Barrage',slot:1,eq1:seconds[2],eq2:seconds[3],score1:0,score2:0,joue:false,gagnant:''});
+    batch.set(tb(),{tour:'Barrage',slot:2,eq1:seconds[1],eq2:seconds[4],score1:0,score2:0,joue:false,gagnant:''});
+    // QF : 1vs(bar1), 4vs5, 3vs6, 2vs(bar2)
+    batch.set(tb(),{tour:'Quart de finale',slot:1,eq1:firsts[0],eq2:'',score1:0,score2:0,joue:false,gagnant:''});
+    batch.set(tb(),{tour:'Quart de finale',slot:2,eq1:firsts[3],eq2:firsts[4],score1:0,score2:0,joue:false,gagnant:''});
+    batch.set(tb(),{tour:'Quart de finale',slot:3,eq1:firsts[2],eq2:seconds[0],score1:0,score2:0,joue:false,gagnant:''});
+    batch.set(tb(),{tour:'Quart de finale',slot:4,eq1:firsts[1],eq2:'',score1:0,score2:0,joue:false,gagnant:''});
     batch.set(tb(),{tour:'Demi-finale',slot:1,eq1:'',eq2:'',score1:0,score2:0,joue:false,gagnant:''});
     batch.set(tb(),{tour:'Demi-finale',slot:2,eq1:'',eq2:'',score1:0,score2:0,joue:false,gagnant:''});
     batch.set(tb(),{tour:'Petite finale',slot:1,eq1:'',eq2:'',score1:0,score2:0,joue:false,gagnant:''});
@@ -1248,12 +1256,15 @@ async function fbGenerateBracket(firsts, seconds, pools) {
     batch.set(tb(),{tour:'Finale',slot:1,eq1:'',eq2:'',score1:0,score2:0,joue:false,gagnant:''});
   }
   await batch.commit();
-  // Consolation
-  const losers = [];
+  // Consolation — triés par performance (meilleurs d'abord)
+  const losersRaw = [];
   pools.forEach(pool => {
     const st = computeStandings(pool);
-    for (let i=2;i<st.length;i++) losers.push(st[i].team.id);
+    for (let i=2;i<st.length;i++) losersRaw.push(st[i]);
   });
+  const sortByPerf2 = (a,b) => b.pts-a.pts || (b.pf-b.pc)-(a.pf-a.pc) || b.pf-a.pf;
+  losersRaw.sort(sortByPerf2);
+  const losers = losersRaw.map(s => s.team.id);
   if (losers.length >= 2) await fbGenerateConsolation(losers);
 }
 
@@ -1268,13 +1279,16 @@ async function fbGenerateConsolation(losers) {
     batch.set(cb(),{tour:'Demi Conso',slot:2,eq1:losers[1],eq2:losers[nl-2]||'',score1:0,score2:0,joue:false,gagnant:''});
     batch.set(cb(),{tour:'Finale Conso',slot:1,eq1:'',eq2:'',score1:0,score2:0,joue:false,gagnant:''});
   } else if (nl===10) {
-    // 2 barrages pour les 2 équipes en trop, puis 4 quarts conso
-    batch.set(cb(),{tour:'Barrage Conso',slot:1,eq1:losers[6],eq2:losers[9],score1:0,score2:0,joue:false,gagnant:''});
-    batch.set(cb(),{tour:'Barrage Conso',slot:2,eq1:losers[7],eq2:losers[8],score1:0,score2:0,joue:false,gagnant:''});
-    batch.set(cb(),{tour:'Quart Conso',slot:1,eq1:losers[0],eq2:losers[5],score1:0,score2:0,joue:false,gagnant:''});
-    batch.set(cb(),{tour:'Quart Conso',slot:2,eq1:losers[1],eq2:losers[4],score1:0,score2:0,joue:false,gagnant:''});
-    batch.set(cb(),{tour:'Quart Conso',slot:3,eq1:losers[2],eq2:'',score1:0,score2:0,joue:false,gagnant:''});
-    batch.set(cb(),{tour:'Quart Conso',slot:4,eq1:losers[3],eq2:'',score1:0,score2:0,joue:false,gagnant:''});
+    // Seeds 1-6 directement en Quart Conso ; seeds 7-10 jouent les barrages conso
+    // Barrage Conso 1 : seed 8 (losers[7]) vs seed 9 (losers[8]) → gagnant → QC1.eq2
+    // Barrage Conso 2 : seed 7 (losers[6]) vs seed 10 (losers[9]) → gagnant → QC4.eq2
+    batch.set(cb(),{tour:'Barrage Conso',slot:1,eq1:losers[7],eq2:losers[8],score1:0,score2:0,joue:false,gagnant:''});
+    batch.set(cb(),{tour:'Barrage Conso',slot:2,eq1:losers[6],eq2:losers[9],score1:0,score2:0,joue:false,gagnant:''});
+    // QC : 1vs(bar1), 4vs5, 3vs6, 2vs(bar2)
+    batch.set(cb(),{tour:'Quart Conso',slot:1,eq1:losers[0],eq2:'',score1:0,score2:0,joue:false,gagnant:''});
+    batch.set(cb(),{tour:'Quart Conso',slot:2,eq1:losers[3],eq2:losers[4],score1:0,score2:0,joue:false,gagnant:''});
+    batch.set(cb(),{tour:'Quart Conso',slot:3,eq1:losers[2],eq2:losers[5],score1:0,score2:0,joue:false,gagnant:''});
+    batch.set(cb(),{tour:'Quart Conso',slot:4,eq1:losers[1],eq2:'',score1:0,score2:0,joue:false,gagnant:''});
     batch.set(cb(),{tour:'Demi Conso',slot:1,eq1:'',eq2:'',score1:0,score2:0,joue:false,gagnant:''});
     batch.set(cb(),{tour:'Demi Conso',slot:2,eq1:'',eq2:'',score1:0,score2:0,joue:false,gagnant:''});
     batch.set(cb(),{tour:'Finale Conso',slot:1,eq1:'',eq2:'',score1:0,score2:0,joue:false,gagnant:''});
@@ -1298,14 +1312,14 @@ async function fbAdvanceWinner(colName, tour, slot, winnerId, loserId) {
     if (doc) await db.collection(colName).doc(doc.id).update(useEq1 ? {eq1:teamId} : {eq2:teamId});
   };
   if (colName==='tableau') {
-    if (tour==='Barrage')       await place('Quart de finale', slot===1?3:4, false, winnerId);
+    if (tour==='Barrage')       await place('Quart de finale', slot===1?1:4, false, winnerId);
     else if (tour==='Quart de finale') await place('Demi-finale', slot<=2?1:2, slot%2===1, winnerId);
     else if (tour==='Demi-finale') {
       await place('Finale', 1, slot===1, winnerId);
       if (loserId) await place('Petite finale', 1, slot===1, loserId);
     }
   } else {
-    if (tour==='Barrage Conso') await place('Quart Conso', slot===1?3:4, false, winnerId);
+    if (tour==='Barrage Conso') await place('Quart Conso', slot===1?1:4, false, winnerId);
     else if (tour==='Quart Conso')  await place('Demi Conso',   slot<=2?1:2, slot%2===1, winnerId);
     else if (tour==='Demi Conso') await place('Finale Conso', 1, slot===1, winnerId);
   }
