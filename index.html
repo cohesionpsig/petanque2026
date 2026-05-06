@@ -1700,6 +1700,15 @@ async function confirmerTirage() {
   btn.disabled=true; btn.textContent='⏳ Démarrage en cours...';
   try {
     const pools = Object.keys(_tiragePoolGroups);
+
+    // Supprimer tous les matchs existants pour éviter les doublons en cas de relance
+    const existingMatchs = await db.collection('matchs').get();
+    if (existingMatchs.docs.length > 0) {
+      const delBatch = db.batch();
+      existingMatchs.docs.forEach(d => delBatch.delete(d.ref));
+      await delBatch.commit();
+    }
+
     const batch = db.batch();
     pools.forEach(pool => {
       _tiragePoolGroups[pool].forEach(team => {
