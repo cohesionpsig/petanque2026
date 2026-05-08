@@ -2895,7 +2895,7 @@ function buildPronoCard(p, equipeId, isClosed) {
         </div>
       </div>`;
     } else if (p.statut === 'ouvert' && equipeId && !haVote) {
-      html += `<button class="prono-choice-btn" onclick="doVote('${p.id}','${ch.replace(/'/g,"\'")}')">
+      html += `<button class="prono-choice-btn" onclick="doVote('${p.id}','${ch.replace(/'/g,"\\'")}')">
         ${esc(ch)}
       </button>`;
     } else {
