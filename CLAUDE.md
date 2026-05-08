@@ -6,21 +6,29 @@ Application web de gestion de tournoi de pétanque. Interface publique (classeme
 
 ## Architecture
 
-Fichier unique : **`index.html`** (CSS inline + JS vanilla inline, ~3100 lignes)
+3 fichiers principaux — pas de build tool, servis tels quels par Vercel :
 
-| Section (lignes approx.) | Rôle |
+| Fichier | Rôle | Taille |
+|---|---|---|
+| `index.html` | Structure HTML uniquement (modales, onglets, header) | ~378 lignes |
+| `css/styles.css` | Tout le CSS (variables, composants, responsive) | ~528 lignes |
+| `js/app.js` | Logique applicative complète (Firebase, rendu DOM, admin) | ~2225 lignes |
+| `js/logic.js` | Fonctions pures exportées (classement, tailles poules, validation scores) | ~43 lignes |
+
+### Sections de `js/app.js` (lignes approx.)
+
+| Section | Rôle |
 |---|---|
-| 1–538 | CSS complet |
-| 539–904 | HTML (structure, modales, onglets) |
-| 907–928 | Config Firebase (dev / prod) |
-| 930–954 | Constantes et état global |
-| 956–988 | Listeners Firestore temps réel |
-| 990–1054 | Calcul local des données (classements, standings) |
-| 1056–1196 | UI Core (tabs, modales, toast, helpers) |
-| 1197–1905 | Opérations Firebase (CRUD) + logique admin |
-| 1906–2050 | Système de votes (pronostics) |
-| 2051–3051 | Fonctions `render*()` — génération du DOM |
-| 3052–3133 | Mises à jour optimistes (score preview) |
+| 1–24 | Config Firebase (dev / prod) |
+| 26–50 | Constantes et état global |
+| 52–93 | Listeners Firestore temps réel + wrapper `computeStandings` |
+| 95–135 | Calcul local des données (standings, pronostics) |
+| 137–280 | UI Core (tabs, modales, toast, helpers) |
+| 282–424 | Opérations Firebase (CRUD) + génération bracket |
+| 426–700 | Actions admin (scores, inscriptions, config) |
+| 702–1110 | Actions tournoi + pronostics |
+| 1112–2160 | Fonctions `render*()` — génération du DOM |
+| 2162–2195 | Mises à jour optimistes (score preview) |
 
 ## Environnements Firebase
 
@@ -123,10 +131,27 @@ Firestore → `liveData` (via `onSnapshot`) → `_scheduleRebuild()` (debounce 8
 
 Les renders reconstruisent le DOM entièrement à chaque mise à jour. Pas de diff/virtual DOM.
 
+## Tests
+
+Les fonctions pures de `js/logic.js` sont testées avec **Vitest** :
+
+```bash
+npm test   # lance les 15 tests
+```
+
+| Fichier | Contenu |
+|---|---|
+| `js/logic.js` | `validatePetanqueScore`, `computePoolSizes`, `computeStandings` |
+| `tests/logic.test.js` | 15 cas de test (scores invalides, tailles poules, classement) |
+
+Les tests vérifient la logique critique sans dépendance à Firebase ni au DOM.
+Toute modification de ces 3 fonctions doit passer les tests avant push.
+
 ## Conventions de développement
 
-- Tout le code reste dans `index.html` (pas de fichiers séparés pour l'instant)
-- Pas de build tool, pas de bundler — fichier servi tel quel par Vercel
+- CSS dans `css/styles.css`, JS dans `js/app.js`, logique pure dans `js/logic.js`
+- Pas de build tool, pas de bundler — fichiers servis tels quels par Vercel
+- `js/app.js` est un script global classique (pas de module ES) — les fonctions sont accessibles via `window` pour les handlers `onclick` HTML
 - Langue de l'interface : **français**
 - Commits en français
 - Pas de commentaires sauf logique non-évidente
