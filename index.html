@@ -2840,16 +2840,16 @@ function renderPronostics(data) {
     opened.forEach(p => { html += buildPronoCard(p, myEquipeId, false); });
   }
 
-  // Pronostics clos
-  if (closed.length > 0) {
-    html += `<div class="prono-section-hdr clos">🔴 Résultats <span style="font-weight:400;font-size:0.78rem;opacity:0.8;">(${closed.length})</span></div>`;
-    closed.forEach(p => { html += buildPronoCard(p, myEquipeId, true); });
-  }
-
   // Inactifs (visibles mais pas votables)
   if (inactive.length > 0) {
     html += `<div class="prono-section-hdr inactif">🟠 Pronostics à venir <span style="font-weight:400;font-size:0.78rem;opacity:0.8;">(${inactive.length})</span></div>`;
     inactive.forEach(p => { html += buildPronoCard(p, myEquipeId, false); });
+  }
+
+  // Pronostics clos
+  if (closed.length > 0) {
+    html += `<div class="prono-section-hdr clos">🔴 Résultats <span style="font-weight:400;font-size:0.78rem;opacity:0.8;">(${closed.length})</span></div>`;
+    closed.forEach(p => { html += buildPronoCard(p, myEquipeId, true); });
   }
 
   sec.innerHTML = html;
@@ -2883,8 +2883,8 @@ function buildPronoCard(p, equipeId, isClosed) {
   const total  = p.totalVotes || 0;
   const haVote = equipeId && p.votedEquipes && p.votedEquipes.map(String).includes(String(equipeId));
   const showBars = haVote || isClosed || p.statut === 'inactif';
-  // Ouvert = déplié par défaut ; clos/inactif = replié par défaut
-  const startOpen = p.statut === 'ouvert';
+  // Ouvert ET pas encore voté = déplié ; déjà voté / clos / inactif = replié
+  const startOpen = p.statut === 'ouvert' && !haVote;
 
   let html = `<div class="prono-card ${startOpen ? 'open' : ''}" id="prono-card-${p.id}">
     <div class="prono-card-header" onclick="togglePronoCard('${p.id}')">
