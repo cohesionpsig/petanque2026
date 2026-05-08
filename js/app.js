@@ -48,6 +48,14 @@ const liveData = {
 let _rebuildTimer = null;
 function _scheduleRebuild() { clearTimeout(_rebuildTimer); _rebuildTimer = setTimeout(rebuildCurrentData, 80); }
 
+const _sectionCache = {};
+function setSection(id, html) {
+  if (_sectionCache[id] === html) return;
+  _sectionCache[id] = html;
+  const el = document.getElementById(id);
+  if (el) el.innerHTML = html;
+}
+
 function initFirebaseListeners() {
   // Timeout de chargement — affiche une erreur si rien ne charge en 8s
   const loadTimeout = setTimeout(() => {
@@ -1145,7 +1153,7 @@ document.addEventListener('DOMContentLoaded', initFirebaseListeners);
 
 function renderPublic(data) {
   if (!data || !data.success) {
-    document.getElementById('pools-section').innerHTML = '<div class="card"><div class="empty-state">Erreur de chargement</div></div>';
+    setSection('pools-section', '<div class="card"><div class="empty-state">Erreur de chargement</div></div>');
     return;
   }
 
@@ -1158,29 +1166,29 @@ function renderPublic(data) {
   const finale = tableau.find(m => m.tour === 'Finale' && m.joue);
   if (finale) {
     const champT = teams.find(t => String(t.id) === String(finale.gagnant));
-    document.getElementById('champion-area').innerHTML = `
+    setSection('champion-area', `
       <div class="champion-banner">
         <div class="trophy">🏆</div>
         <div class="winner-label">Champion du tournoi</div>
         <div class="winner-name">${champT ? esc(champT.nom) : '—'}</div>
         ${champT ? `<div class="winner-players">👤 ${esc(champT.j1)} &amp; ${esc(champT.j2)}</div>` : ''}
-      </div>`;
+      </div>`);
   } else {
-    document.getElementById('champion-area').innerHTML = '';
+    setSection('champion-area', '');
   }
 
   // ── Mode maintenance ──
   if (data.maintenanceMode) {
-    document.getElementById('champion-area').innerHTML   = '';
-    document.getElementById('bracket-section').innerHTML = '';
-    document.getElementById('consolation-section').innerHTML = '';
-    document.getElementById('stats-section').innerHTML   = '';
-    document.getElementById('pools-section').innerHTML   = `
+    setSection('champion-area', '');
+    setSection('bracket-section', '');
+    setSection('consolation-section', '');
+    setSection('stats-section', '');
+    setSection('pools-section', `
       <div class="maintenance-screen">
         <span class="maintenance-icon">🔧</span>
         <h2>Maintenance en cours</h2>
         <p>L'application est temporairement indisponible.<br>Merci de réessayer dans quelques minutes.</p>
-      </div>`;
+      </div>`);
     // Masquer aussi le bandeau d'inscription
     const banner = document.getElementById('register-banner');
     if (banner) banner.style.display = 'none';
@@ -1231,22 +1239,22 @@ function renderPublic(data) {
       });
       phaseHtml += `</div></div>`;
     }
-    document.getElementById('pools-section').innerHTML = phaseHtml;
-    document.getElementById('bracket-section').innerHTML = '';
-    document.getElementById('consolation-section').innerHTML = '';
-    document.getElementById('stats-section').innerHTML = '';
+    setSection('pools-section', phaseHtml);
+    setSection('bracket-section', '');
+    setSection('consolation-section', '');
+    setSection('stats-section', '');
     return;
   }
 
   // ── Tournoi démarré ──
   if (pools.length === 0) {
-    document.getElementById('pools-section').innerHTML = `
+    setSection('pools-section', `
       <div class="card">
         <div class="empty-state">
           <div class="es-icon">🎯</div>
           Le tournoi n'a pas encore demarre.<br>Les poules apparaitront ici des les premieres equipes validees.
         </div>
-      </div>`;
+      </div>`);
   } else {
     let html = '<div class="section-header"><h2>🏅 Phase de poules</h2></div>';
     pools.forEach(({ pool, teams: pt, matchs, standings }) => {
@@ -1323,7 +1331,7 @@ function renderPublic(data) {
 
       html += `</div>`;
     });
-    document.getElementById('pools-section').innerHTML = html;
+    setSection('pools-section', html);
   }
 
   renderBracket(data);
@@ -1335,10 +1343,9 @@ function renderPublic(data) {
 //  RENDU BRACKET
 // ─────────────────────────────────────────────────
 function renderBracket({ tableau, teams }) {
-  const sec = document.getElementById('bracket-section');
   if (!tableau || tableau.length === 0) {
-    sec.innerHTML = `<div class="section-header"><h2>🏆 Tableau final</h2></div>
-      <div class="card"><div class="empty-state"><div class="es-icon">🏆</div>Le tableau s'affichera quand tous les matchs de poules seront termines</div></div>`;
+    setSection('bracket-section', `<div class="section-header"><h2>🏆 Tableau final</h2></div>
+      <div class="card"><div class="empty-state"><div class="es-icon">🏆</div>Le tableau s'affichera quand tous les matchs de poules seront termines</div></div>`);
     return;
   }
 
@@ -1387,7 +1394,7 @@ function renderBracket({ tableau, teams }) {
     </div>`;
   }
 
-  sec.innerHTML = html;
+  setSection('bracket-section', html);
 }
 
 // ─────────────────────────────────────────────────
@@ -1398,8 +1405,7 @@ function renderAdmin({ teams, validatedTeams, pending, pools, tableau, consolati
   // ── Inscriptions en attente ──
   const pendingCard = document.getElementById('pending-card');
   if (pending.length === 0) {
-    document.getElementById('pending-list').innerHTML =
-      '<div class="empty-state"><div class="es-icon">✅</div>Aucune inscription en attente</div>';
+    setSection('pending-list', '<div class="empty-state"><div class="es-icon">✅</div>Aucune inscription en attente</div>');
     if (!scoreModeOnly) pendingCard.style.display = 'block';
   } else {
     if (!scoreModeOnly) pendingCard.style.display = 'block';
@@ -1438,14 +1444,13 @@ function renderAdmin({ teams, validatedTeams, pending, pools, tableau, consolati
         </div>
       </div>`;
     });
-    document.getElementById('pending-list').innerHTML = html;
+    setSection('pending-list', html);
   }
 
   // ── Equipes actives (toutes les validées, avec ou sans poule) ──
   const displayTeams = validatedTeams || teams;
   if (displayTeams.length === 0) {
-    document.getElementById('active-teams-list').innerHTML =
-      '<div class="empty-state"><div class="es-icon">🎯</div>Aucune equipe validee pour l\'instant</div>';
+    setSection('active-teams-list', '<div class="empty-state"><div class="es-icon">🎯</div>Aucune equipe validee pour l\'instant</div>');
   } else {
     let html = '';
     displayTeams.forEach(t => {
@@ -1463,7 +1468,7 @@ function renderAdmin({ teams, validatedTeams, pending, pools, tableau, consolati
         </div>
       </div>`;
     });
-    document.getElementById('active-teams-list').innerHTML = html;
+    setSection('active-teams-list', html);
   }
 
   // ── Scores poules ──
@@ -1473,9 +1478,9 @@ function renderAdmin({ teams, validatedTeams, pending, pools, tableau, consolati
   const incompletePools = allPools.filter(p => p.matchs.length === 0 && p.teams.length >= 2);
 
   if (allUnplayed.length === 0 && incompletePools.length === 0 && pools.length > 0) {
-    document.getElementById('pool-scores').innerHTML = '<div class="empty-state"><div class="es-icon">✅</div>Tous les matchs de poules sont termines !</div>';
+    setSection('pool-scores', '<div class="empty-state"><div class="es-icon">✅</div>Tous les matchs de poules sont termines !</div>');
   } else if (allUnplayed.length === 0 && incompletePools.length === 0) {
-    document.getElementById('pool-scores').innerHTML = '<div class="empty-state"><div class="es-icon">⏳</div>Aucune poule active pour le moment.</div>';
+    setSection('pool-scores', '<div class="empty-state"><div class="es-icon">⏳</div>Aucune poule active pour le moment.</div>');
   } else {
     let html = '';
 
@@ -1519,7 +1524,7 @@ function renderAdmin({ teams, validatedTeams, pending, pools, tableau, consolati
         </div>`;
       });
     });
-    document.getElementById('pool-scores').innerHTML = html;
+    setSection('pool-scores', html);
   }
 
   // ── Scores tableau final ──
@@ -1528,9 +1533,9 @@ function renderAdmin({ teams, validatedTeams, pending, pools, tableau, consolati
     document.getElementById('final-scores-card').style.display = 'block';
     if (playableFinal.length === 0) {
       const done = tableau.every(m => m.joue);
-      document.getElementById('final-scores').innerHTML = done
+      setSection('final-scores', done
         ? '<div class="empty-state"><div class="es-icon">🏆</div>Le tournoi est termine !</div>'
-        : '<div class="empty-state"><div class="es-icon">⏳</div>En attente des tours precedents</div>';
+        : '<div class="empty-state"><div class="es-icon">⏳</div>En attente des tours precedents</div>');
     } else {
       const RLABELS = {'Barrage':'⚡ Barrages','Quart de finale':'⚡ Quarts','Demi-finale':'🔥 Demi-finales','Petite finale':'🥉 3ème place','Finale':'🏆 Finale'};
       let html = '';
@@ -1553,7 +1558,7 @@ function renderAdmin({ teams, validatedTeams, pending, pools, tableau, consolati
           </div>`;
         });
       });
-      document.getElementById('final-scores').innerHTML = html;
+      setSection('final-scores', html);
     }
   } else {
     document.getElementById('final-scores-card').style.display = 'none';
@@ -1567,9 +1572,9 @@ function renderAdmin({ teams, validatedTeams, pending, pools, tableau, consolati
     const CLABELS = { 'Barrage Conso':'⚡ Barrages Conso', 'Quart Conso':'⚡ Quarts Conso', 'Demi Conso':'🔥 Demi Conso', 'Finale Conso':'🥉 Finale Conso' };
     if (playableConso.length === 0) {
       const done = consolation.every(m => m.joue);
-      document.getElementById('consolation-scores').innerHTML = done
+      setSection('consolation-scores', done
         ? '<div class="empty-state"><div class="es-icon">🥉</div>Tableau de consolation terminé !</div>'
-        : '<div class="empty-state"><div class="es-icon">⏳</div>En attente des tours précédents</div>';
+        : '<div class="empty-state"><div class="es-icon">⏳</div>En attente des tours précédents</div>');
     } else {
       let html = '';
       ['Barrage Conso','Quart Conso','Demi Conso','Finale Conso'].forEach(round => {
@@ -1591,7 +1596,7 @@ function renderAdmin({ teams, validatedTeams, pending, pools, tableau, consolati
           </div>`;
         });
       });
-      document.getElementById('consolation-scores').innerHTML = html;
+      setSection('consolation-scores', html);
     }
   } else {
     document.getElementById('consolation-scores-card').style.display = 'none';
@@ -1609,7 +1614,7 @@ function renderAdminPronostics(pronostics, teams) {
   const sec = document.getElementById('admin-prono-list');
   if (!sec) return;
   if (!pronostics || pronostics.length === 0) {
-    sec.innerHTML = '<div class="empty-state"><div class="es-icon">🎯</div>Aucun pronostic créé</div>';
+    setSection('admin-prono-list', '<div class="empty-state"><div class="es-icon">🎯</div>Aucun pronostic créé</div>');
     return;
   }
 
@@ -1660,16 +1665,15 @@ function renderAdminPronostics(pronostics, teams) {
     html += `</div></div>`;
   });
 
-  sec.innerHTML = html;
+  setSection('admin-prono-list', html);
 }
 
 
 function renderConsolation(data) {
-  const sec = document.getElementById('consolation-section');
-  if (!sec) return;
+  if (!document.getElementById('consolation-section')) return;
   const { consolation, teams } = data;
 
-  if (!consolation || consolation.length === 0) { sec.innerHTML = ''; return; }
+  if (!consolation || consolation.length === 0) { setSection('consolation-section', ''); return; }
 
   const ROUND_ORDER = ['Barrage Conso','Quart Conso','Demi Conso','Finale Conso'];
   const ROUND_LABELS = { 'Barrage Conso':'Barrages', 'Quart Conso':'Quarts', 'Demi Conso':'Demi-finales', 'Finale Conso':'Finale' };
@@ -1703,7 +1707,7 @@ function renderConsolation(data) {
   });
 
   html += '</div></div></div>';
-  sec.innerHTML = html;
+  setSection('consolation-section', html);
 }
 
 function computeStats(data) {
@@ -1737,16 +1741,15 @@ function computeStats(data) {
 }
 
 function renderStats(data) {
-  const sec = document.getElementById('stats-section');
-  if (!sec) return;
+  if (!document.getElementById('stats-section')) return;
   const stats = computeStats(data);
-  if (!stats) { sec.innerHTML = ''; return; }
+  if (!stats) { setSection('stats-section', ''); return; }
 
   const { bestScorer, bestDefense, tightest, totalMatchs } = stats;
   const t1 = tname(tightest.m.eq1, data.teams)||'?';
   const t2 = tname(tightest.m.eq2, data.teams)||'?';
 
-  sec.innerHTML = `
+  setSection('stats-section', `
     <div class="section-header"><h2>📊 Statistiques</h2></div>
     <div class="card">
       <div class="stats-grid">
@@ -1775,7 +1778,7 @@ function renderStats(data) {
           <div class="stat-sub">au total</div>
         </div>
       </div>
-    </div>`;
+    </div>`);
 }
 
 function openTeamFiche(teamId) {
@@ -1974,14 +1977,14 @@ function renderPronoSuggestions(data) {
   }
 
   if (suggestions.length === 0) {
-    sec.innerHTML = '<span style="font-size:0.75rem;color:var(--muted);font-style:italic;">Disponible une fois les équipes inscrites</span>';
+    setSection('prono-suggestions', '<span style="font-size:0.75rem;color:var(--muted);font-style:italic;">Disponible une fois les équipes inscrites</span>');
     return;
   }
 
   // Stocker dans un tableau global pour éviter les problèmes de quotes dans onclick
   window._pronoSuggestions = suggestions;
 
-  sec.innerHTML = suggestions.map((s, i) => `
+  setSection('prono-suggestions', suggestions.map((s, i) => `
     <button onclick="prefillPronoByIndex(${i})"
       style="padding:6px 12px;background:white;color:${s.color};border:1.5px solid ${s.color};border-radius:8px;
              font-family:'DM Sans',sans-serif;font-size:0.78rem;font-weight:700;cursor:pointer;transition:all 0.15s;white-space:nowrap;"
@@ -1989,7 +1992,7 @@ function renderPronoSuggestions(data) {
       onmouseout="this.style.background='white';this.style.color='${s.color}';">
       ${esc(s.label)}
     </button>`
-  ).join('');
+  ).join(''));
 }
 
 function prefillPronoByIndex(i) {
@@ -2018,8 +2021,8 @@ function renderPronostics(data) {
   const inactive = pronostics.filter(p => p.statut === 'inactif');
 
   if (pronostics.length === 0) {
-    sec.innerHTML = `<div class="card"><div class="empty-state"><div class="es-icon">🎯</div>Aucun pronostic disponible pour le moment.<br>Revenez plus tard !</div></div>`;
-    if (secS) secS.innerHTML = '';
+    setSection('prono-public-section', `<div class="card"><div class="empty-state"><div class="es-icon">🎯</div>Aucun pronostic disponible pour le moment.<br>Revenez plus tard !</div></div>`);
+    if (secS) setSection('prono-scoreboard-section', '');
     return;
   }
 
@@ -2051,13 +2054,13 @@ function renderPronostics(data) {
     closed.forEach(p => { html += buildPronoCard(p, myEquipeId, true); });
   }
 
-  sec.innerHTML = html;
+  setSection('prono-public-section', html);
 
   // Scoreboard
   if (closed.length > 0 && secS) {
     fbGetPronosticScoreboard().then(r => {
       if (!r.scoreboard || r.scoreboard.every(s => s.points === 0)) {
-        secS.innerHTML = '';
+        setSection('prono-scoreboard-section', '');
         return;
       }
       let sHtml = `<div class="section-header"><h2>🏅 Classement pronostics</h2></div><div class="card">`;
@@ -2071,10 +2074,10 @@ function renderPronostics(data) {
         </div>`;
       });
       sHtml += '</div>';
-      secS.innerHTML = sHtml;
+      setSection('prono-scoreboard-section', sHtml);
     }).catch(() => {});
   } else if (secS) {
-    secS.innerHTML = '';
+    setSection('prono-scoreboard-section', '');
   }
 }
 
