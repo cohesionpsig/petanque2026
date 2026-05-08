@@ -825,6 +825,7 @@ body { font-family: 'DM Sans', sans-serif; background: var(--cream); color: var(
         </div>
 
         <!-- Liste des pronostics -->
+        <button onclick="openVotesModal()" style="width:100%;margin-bottom:10px;padding:9px;background:var(--navy);color:white;border:none;border-radius:9px;font-family:'DM Sans',sans-serif;font-size:0.85rem;font-weight:600;cursor:pointer;">📊 Détail des votes (qui a voté quoi)</button>
         <div id="admin-prono-list"><div class="empty-state"><div class="es-icon">🎯</div>Aucun pronostic créé</div></div>
       </div>
 
@@ -857,6 +858,18 @@ body { font-family: 'DM Sans', sans-serif; background: var(--cream); color: var(
     <div style="display:flex;gap:8px;margin-top:16px;position:sticky;bottom:0;background:white;padding-top:10px;">
       <button onclick="closeEditScoresModal()" style="flex:1;padding:11px;background:var(--sand);color:var(--text);border:none;border-radius:9px;font-family:'DM Sans',sans-serif;font-weight:600;cursor:pointer;">Annuler</button>
       <button onclick="submitEditedScores()" id="btn-save-edits" style="flex:2;padding:11px;background:var(--terra);color:white;border:none;border-radius:9px;font-family:'DM Sans',sans-serif;font-weight:600;cursor:pointer;">Enregistrer les modifications</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal détail votes pronostics -->
+<div class="modal-overlay" id="votes-modal" onclick="if(event.target===this)closeVotesModal()">
+  <div class="modal-box" style="max-height:88vh;max-width:560px;">
+    <div class="modal-drag"></div>
+    <div class="modal-title">📊 Détail des votes</div>
+    <div id="votes-modal-content" style="overflow-y:auto;max-height:65vh;"></div>
+    <div style="display:flex;gap:8px;margin-top:12px;">
+      <button onclick="closeVotesModal()" style="flex:1;padding:11px;background:var(--sand);color:var(--text);border:none;border-radius:9px;font-family:'DM Sans',sans-serif;font-weight:600;cursor:pointer;">Fermer</button>
     </div>
   </div>
 </div>
@@ -1926,6 +1939,96 @@ function doVote(pronosticId, choix) {
     .catch(e => alert('Erreur : '+e.message));
 }
 
+
+function openVotesModal() {
+  renderVotesModal();
+  document.getElementById('votes-modal').classList.add('open');
+}
+function closeVotesModal() {
+  document.getElementById('votes-modal').classList.remove('open');
+}
+
+function renderVotesModal() {
+  const content = document.getElementById('votes-modal-content');
+  if (!content) return;
+  const pronostics = currentData?.pronostics || [];
+  const allVotes   = liveData.votes || [];
+  const teams      = liveData.equipes || [];
+
+  if (pronostics.length === 0) {
+    content.innerHTML = '<div class="empty-state"><div class="es-icon">🎯</div>Aucun pronostic</div>';
+    return;
+  }
+
+  const teamName = id => teams.find(t => String(t.id)===String(id))?.nom || '(équipe inconnue)';
+
+  let html = '';
+  pronostics.forEach(p => {
+    const votes = allVotes.filter(v => v.pronosticId === p.id);
+    const statusLabel = p.statut==='ouvert' ? '🟢 Ouvert' : p.statut==='clos' ? '🔒 Clos' : '⏸️ Inactif';
+    const optsHtml = p.choix.map(ch => `<option value="${ch.replace(/"/g,'&quot;')}">${esc(ch)}</option>`).join('');
+
+    html += `<div style="border:1px solid var(--border);border-radius:10px;padding:12px;margin-bottom:10px;">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;flex-wrap:wrap;">
+        <span style="font-family:'Outfit',sans-serif;font-size:0.88rem;font-weight:800;color:var(--navy);flex:1;">${esc(p.question)}</span>
+        <span class="prono-status-badge ${p.statut}" style="flex-shrink:0;">${statusLabel}</span>
+      </div>`;
+
+    if (votes.length === 0) {
+      html += `<div style="font-size:0.78rem;color:var(--muted);font-style:italic;">Aucun vote pour ce pronostic.</div>`;
+    } else {
+      votes.forEach(v => {
+        const escapedChoix = v.choix.replace(/'/g, "\\'");
+        html += `<div id="vote-row-${v.id}" style="display:flex;align-items:center;gap:8px;padding:6px 8px;border-radius:7px;background:var(--sand);margin-bottom:5px;flex-wrap:wrap;">
+          <span style="font-size:0.82rem;font-weight:600;flex:1;min-width:100px;">${esc(teamName(v.equipeId))}</span>
+          <span style="font-size:0.78rem;color:var(--muted);">→</span>
+          <span id="vote-label-${v.id}" style="font-size:0.82rem;font-weight:600;color:var(--navy);">${esc(v.choix)}</span>
+          <div id="vote-edit-${v.id}" style="display:none;flex:1;min-width:140px;align-items:center;gap:5px;">
+            <select id="vote-sel-${v.id}" style="flex:1;padding:4px 8px;border:1.5px solid var(--border);border-radius:6px;font-size:0.8rem;">${optsHtml}</select>
+            <button onclick="doSaveVoteEdit('${v.id}')" style="padding:4px 8px;background:var(--green);color:white;border:none;border-radius:6px;font-size:0.78rem;font-weight:600;cursor:pointer;">✓</button>
+            <button onclick="doCancelVoteEdit('${v.id}')" style="padding:4px 8px;background:var(--sand);color:var(--text);border:1px solid var(--border);border-radius:6px;font-size:0.78rem;cursor:pointer;">✗</button>
+          </div>
+          <button id="vote-editbtn-${v.id}" onclick="doStartVoteEdit('${v.id}','${escapedChoix}')" style="padding:3px 8px;background:var(--sand);border:1px solid var(--border);border-radius:6px;font-size:0.75rem;cursor:pointer;">✏️ Modifier</button>
+          <button onclick="doDeleteVote('${v.id}')" style="padding:3px 8px;background:var(--red-bg);color:var(--red);border:1px solid #f5c6c2;border-radius:6px;font-size:0.75rem;cursor:pointer;">🗑 Suppr.</button>
+        </div>`;
+      });
+    }
+    html += '</div>';
+  });
+
+  content.innerHTML = html;
+}
+
+function doStartVoteEdit(voteId, currentChoix) {
+  const sel = document.getElementById('vote-sel-' + voteId);
+  if (sel) sel.value = currentChoix;
+  document.getElementById('vote-label-' + voteId).style.display = 'none';
+  document.getElementById('vote-editbtn-' + voteId).style.display = 'none';
+  const editDiv = document.getElementById('vote-edit-' + voteId);
+  if (editDiv) editDiv.style.display = 'flex';
+}
+
+function doCancelVoteEdit(voteId) {
+  document.getElementById('vote-label-' + voteId).style.display = '';
+  document.getElementById('vote-editbtn-' + voteId).style.display = '';
+  const editDiv = document.getElementById('vote-edit-' + voteId);
+  if (editDiv) editDiv.style.display = 'none';
+}
+
+function doSaveVoteEdit(voteId) {
+  const sel = document.getElementById('vote-sel-' + voteId);
+  if (!sel) return;
+  db.collection('votes').doc(voteId).update({ choix: sel.value })
+    .then(() => { renderVotesModal(); toast('✅ Vote modifié'); })
+    .catch(e => alert('Erreur : ' + e.message));
+}
+
+function doDeleteVote(voteId) {
+  if (!confirm("Supprimer ce vote ? L'équipe pourra revoter.")) return;
+  db.collection('votes').doc(voteId).delete()
+    .then(() => { renderVotesModal(); toast('🗑 Vote supprimé — l\'équipe peut revoter'); })
+    .catch(e => alert('Erreur : ' + e.message));
+}
 async function fbGetPronosticScoreboard() {
   try {
     const snap   = await db.collection('config').doc('pronoScores').get();
